@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  getCaptureContext,
-  sendTransientToken,
-} from "../../API/payments.api";
+import { getCaptureContext, sendTransientToken } from "../../API/payments.api";
 
 /* =======================
    Tipos de CyberSource
@@ -12,12 +9,7 @@ interface FlexInstance {
   microform(
     type: "card",
     options: {
-      styles: {
-        input: {
-          fontSize: string;
-          color: string;
-        };
-      };
+      styles: { input: { fontSize: string; color: string } };
     }
   ): MicroformInstance;
 }
@@ -26,15 +18,9 @@ interface MicroformInstance {
   createField(
     type: "number" | "securityCode",
     options: { placeholder: string }
-  ): {
-    load: (selector: string) => void;
-  };
-
+  ): { load: (selector: string) => void };
   createToken(
-    data: {
-      expirationMonth: string;
-      expirationYear: string;
-    },
+    data: { expirationMonth: string; expirationYear: string },
     callback: (err: { message: string } | null, token: unknown) => void
   ): void;
 }
@@ -45,67 +31,96 @@ declare global {
   }
 }
 
+/* =======================
+   Hook para cargar scripts externos
+======================= */
+const useLoadScript = (
+  src: string,
+  integrity?: string,
+  onLoad?: () => void
+) => {
+  useEffect(() => {
+    if (!src) return;
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    if (integrity) script.integrity = integrity;
+    if (onLoad) script.onload = onLoad;
+
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [src, integrity, onLoad]);
+};
+
+/* =======================
+   Componente principal
+======================= */
+
 export default function PayCybersourceForm() {
   const microformRef = useRef<MicroformInstance | null>(null);
   const expMonthRef = useRef<HTMLSelectElement>(null);
   const expYearRef = useRef<HTMLSelectElement>(null);
 
   const [error, setError] = useState<string>("");
+  const [captureContext, setCaptureContext] = useState<string>("");
+  const [scriptData, setScriptData] = useState<{ src: string; integrity: string } | null>(null);
 
+  /* =======================
+     Obtener capture context
+  ======================= */
   useEffect(() => {
-    init();
+    const initCaptureContext = async () => {
+      try {
+        const { token } = await getCaptureContext();
+        if (!token) throw new Error("No se obtuvo capture context");
+
+        // Guardamos el token completo para inicializar Flex
+        setCaptureContext(token);
+
+        // Decodificamos para obtener script e integridad
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        const ctxData = payload.ctx[0].data;
+        setScriptData({ src: ctxData.clientLibrary, integrity: ctxData.clientLibraryIntegrity });
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    };
+
+    initCaptureContext();
   }, []);
 
-  const init = async (): Promise<void> => {
+  /* =======================
+     Cargar script CyberSource
+  ======================= */
+  useLoadScript(scriptData?.src ?? "", scriptData?.integrity, () => {
+    if (!captureContext) {
+      setError("Capture context no válido para inicializar Flex");
+      return;
+    }
+
     try {
-      const { token } = await getCaptureContext();
-      loadCyberSourceScript(token);
+      const flex = new window.Flex(captureContext);
+      const microform = flex.microform("card", {
+        styles: { input: { fontSize: "16px", color: "#333" } },
+      });
+
+      microform.createField("number", { placeholder: "4111 1111 1111 1111" }).load("#number-container");
+      microform.createField("securityCode", { placeholder: "•••" }).load("#securityCode-container");
+
+      microformRef.current = microform;
     } catch (e) {
       setError((e as Error).message);
     }
-  };
+  });
 
-  const loadCyberSourceScript = (captureContext: string): void => {
-    const payload = JSON.parse(atob(captureContext.split(".")[1]));
-    const ctxData = payload.ctx[0].data;
-
-    const script = document.createElement("script");
-    script.src = ctxData.clientLibrary;
-    script.integrity = ctxData.clientLibraryIntegrity;
-    script.crossOrigin = "anonymous";
-    script.async = true;
-
-    script.onload = () => initMicroform(captureContext);
-    document.head.appendChild(script);
-  };
-
-  const initMicroform = (captureContext: string): void => {
-    const flex = new window.Flex(captureContext);
-
-    const microform = flex.microform("card", {
-      styles: {
-        input: {
-          fontSize: "16px",
-          color: "#333",
-        },
-      },
-    });
-
-    microform
-      .createField("number", {
-        placeholder: "4111 1111 1111 1111",
-      })
-      .load("#number-container");
-
-    microform
-      .createField("securityCode", {
-        placeholder: "•••",
-      })
-      .load("#securityCode-container");
-
-    microformRef.current = microform;
-  };
-
+  /* =======================
+     Tokenizar tarjeta
+  ======================= */
   const tokenize = (): void => {
     if (!microformRef.current) return;
 
@@ -130,11 +145,19 @@ export default function PayCybersourceForm() {
     );
   };
 
+  /* =======================
+     Generar opciones dinámicas
+  ======================= */
+  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
+  const years = Array.from({ length: 10 }, (_, i) => (2025 + i).toString());
+
+  /* =======================
+     Render
+  ======================= */
   return (
     <div>
       <h1>Pago</h1>
-
-      {error && <div role="alert">{error}</div>}
+      {error && <div role="alert" style={{ color: "red" }}>{error}</div>}
 
       <label>Nombre en la tarjeta</label>
       <input type="text" />
@@ -147,19 +170,19 @@ export default function PayCybersourceForm() {
 
       <label>Mes</label>
       <select ref={expMonthRef}>
-        <option value="01">01</option>
-        <option value="02">02</option>
+        {months.map((m) => (
+          <option key={m} value={m}>{m}</option>
+        ))}
       </select>
 
       <label>Año</label>
       <select ref={expYearRef}>
-        <option value="2025">2025</option>
-        <option value="2026">2026</option>
+        {years.map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
       </select>
 
-      <button type="button" onClick={tokenize}>
-        Pagar
-      </button>
+      <button type="button" onClick={tokenize}>Pagar</button>
     </div>
   );
 }
