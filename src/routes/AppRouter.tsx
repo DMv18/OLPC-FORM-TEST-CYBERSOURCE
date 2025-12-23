@@ -9,6 +9,7 @@ export function AppRouter() {
         <Suspense fallback={<div>Loading...</div>}>
             <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/*" element={<Home />} />
                 <Route path="/home" element={<Home />} />
 
                 <Route path="/process-pay" element={<ProcessPayView />} />

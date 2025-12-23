@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { getCaptureContext, sendTransientToken } from "../../API/payments.api";
-import { Input } from "../components/Input";
-import { Button } from "../components/Button";
-import { Select } from "../components/Select";
+import { Input } from "../../components/Input/Input";
+import { Button } from "../../components/Button/Button";
+import { Select } from "../../components/Select/Select";
+
+import { WithEnqueueSnackbar } from "../../components/WithNotistack/WithEnqueueSnackbar";
 
 /* =======================
    Tipos de CyberSource
@@ -79,6 +81,9 @@ export default function PayCybersourceForm() {
   const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
   const years = Array.from({ length: 10 }, (_, i) => (2025 + i).toString());
 
+  const { handlerEnqueue } = WithEnqueueSnackbar(); // notificacion lateral
+  
+
   /* =======================
      Obtener capture context
   ======================= */
@@ -86,7 +91,10 @@ export default function PayCybersourceForm() {
     const initCaptureContext = async () => {
       try {
         const { token } = await getCaptureContext();
-        if (!token) throw new Error("No se obtuvo capture context");
+        if (!token) {
+          handlerEnqueue("Hubo un error al conectarse", "error");
+          throw new Error("No se obtuvo capture context");
+        } 
 
         // Guardamos el token completo para inicializar Flex
         setCaptureContext(token);
@@ -96,6 +104,7 @@ export default function PayCybersourceForm() {
         const ctxData = payload.ctx[0].data;
         setScriptData({ src: ctxData.clientLibrary, integrity: ctxData.clientLibraryIntegrity });
       } catch (e) {
+        handlerEnqueue("Hubo un error al conectarse", "error");
         setError((e as Error).message);
       }
     };
@@ -146,6 +155,7 @@ export default function PayCybersourceForm() {
 
         try {
           const result = await sendTransientToken(token);
+          handlerEnqueue("Pago procesado con éxito");
           console.log("Pago procesado", result);
         } catch (e) {
           setError((e as Error).message);
