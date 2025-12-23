@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { getCaptureContext, sendTransientToken } from "../../API/payments.api";
+import { Input } from "../components/Input";
+import { Button } from "../components/Button";
+import { Select } from "../components/Select";
 
 /* =======================
    Tipos de CyberSource
@@ -69,6 +72,12 @@ export default function PayCybersourceForm() {
   const [error, setError] = useState<string>("");
   const [captureContext, setCaptureContext] = useState<string>("");
   const [scriptData, setScriptData] = useState<{ src: string; integrity: string } | null>(null);
+
+  /* =======================
+     Generar opciones dinámicas
+  ======================= */
+  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
+  const years = Array.from({ length: 10 }, (_, i) => (2025 + i).toString());
 
   /* =======================
      Obtener capture context
@@ -145,44 +154,50 @@ export default function PayCybersourceForm() {
     );
   };
 
-  /* =======================
-     Generar opciones dinámicas
-  ======================= */
-  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
-  const years = Array.from({ length: 10 }, (_, i) => (2025 + i).toString());
+
 
   /* =======================
      Render
   ======================= */
   return (
-    <div>
-      <h1>Pago</h1>
-      {error && <div role="alert" style={{ color: "red" }}>{error}</div>}
+    <div className="max-w-md mx-auto p-6 bg-white shadow-md rounded-md space-y-4">
+      <h1 className="text-2xl font-bold text-gray-800">Pago</h1>
 
-      <label>Nombre en la tarjeta</label>
-      <input type="text" />
+      {error && <div className="text-red-500">{error}</div>}
 
-      <label>Número de tarjeta</label>
-      <div id="number-container" className="microform-field" />
+      <Input label="Nombre en la tarjeta" placeholder="Juan Pérez" />
 
-      <label>CVV</label>
-      <div id="securityCode-container" className="microform-field" />
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700">Número de tarjeta</label>
+        <div id="number-container" className="px-3 py-2 border rounded-md h-10" />
+      </div>
 
-      <label>Mes</label>
-      <select ref={expMonthRef}>
-        {months.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700">CVV</label>
+        <div id="securityCode-container" className="px-3 py-2 border rounded-md h-10" />
+      </div>
 
-      <label>Año</label>
-      <select ref={expYearRef}>
-        {years.map((y) => (
-          <option key={y} value={y}>{y}</option>
-        ))}
-      </select>
+      <div className="grid grid-cols-2 gap-4">
+        <Select label="Mes" ref={expMonthRef}>
+          {months.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </Select>
 
-      <button type="button" onClick={tokenize}>Pagar</button>
+        <Select label="Año" ref={expYearRef}>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <Button type="button" onClick={tokenize}>
+        Pagar
+      </Button>
     </div>
   );
 }
