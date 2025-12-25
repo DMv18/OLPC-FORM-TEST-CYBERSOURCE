@@ -23,7 +23,7 @@ export async function getCaptureContext(): Promise<CaptureContextResponse> {
   return response.json();
 }
 
-export async function sendTransientToken(transientToken: any) {
+export async function sendTransientToken(transientToken: unknown) {
   const response = await fetch(
     `${API_BASE}/api/payments/charge`,
     {
